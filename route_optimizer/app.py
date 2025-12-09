@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 from typing import List, Optional
 from geocode import parse_input_locations
 from routing import build_distance_matrix, DEFAULT_OSRM_URL
-from ga import solve_tsp, GAConfig
+from ga import solve_tsp, solve_tsp_with_fixed_points, GAConfig
 import uvicorn
 import os
 import logging
@@ -59,6 +59,8 @@ class SolveRequest(BaseModel):
     use_duration: Optional[bool] = Field(False, description="Optimize by duration instead of distance")
     pop_size: Optional[int] = Field(200, ge=50, le=1000, description="GA population size")
     generations: Optional[int] = Field(300, ge=50, le=2000, description="GA generations")
+    start_index: Optional[int] = Field(None, description="Index of fixed start location (0-based)")
+    end_index: Optional[int] = Field(None, description="Index of fixed end location (0-based)")
     
     class Config:
         json_schema_extra = {
@@ -69,7 +71,9 @@ class SolveRequest(BaseModel):
                     {"lat": -6.2297, "lon": 106.8206, "label": "Point C"}
                 ],
                 "pop_size": 200,
-                "generations": 300
+                "generations": 300,
+                "start_index": 0,
+                "end_index": 2
             }
         }
 
@@ -132,6 +136,15 @@ def solve_endpoint(req: SolveRequest):
             detail="Provide at least 2 locations"
         )
 
+    # Validate start and end indices
+    n_locs = len(req.locations)
+    if req.start_index is not None and (req.start_index < 0 or req.start_index >= n_locs):
+        raise HTTPException(status_code=400, detail=f"start_index must be between 0 and {n_locs-1}")
+    if req.end_index is not None and (req.end_index < 0 or req.end_index >= n_locs):
+        raise HTTPException(status_code=400, detail=f"end_index must be between 0 and {n_locs-1}")
+    if req.start_index is not None and req.end_index is not None and req.start_index == req.end_index:
+        raise HTTPException(status_code=400, detail="start_index and end_index cannot be the same")
+
     # Parse and geocode locations
     try:
         locs = parse_input_locations([
@@ -167,8 +180,19 @@ def solve_endpoint(req: SolveRequest):
     # Solve TSP using Genetic Algorithm
     try:
         cfg = GAConfig(pop_size=req.pop_size, generations=req.generations)
-        res = solve_tsp(distances, cfg)
-        logger.info(f"GA solved in {res['generations_run']} generations")
+        
+        # Use fixed start/end if provided
+        if req.start_index is not None or req.end_index is not None:
+            res = solve_tsp_with_fixed_points(
+                distances, 
+                cfg, 
+                start_idx=req.start_index,
+                end_idx=req.end_index
+            )
+            logger.info(f"GA solved with fixed points in {res['generations_run']} generations")
+        else:
+            res = solve_tsp(distances, cfg)
+            logger.info(f"GA solved in {res['generations_run']} generations")
     except Exception as e:
         logger.error(f"Error in GA solver: {str(e)}")
         raise HTTPException(

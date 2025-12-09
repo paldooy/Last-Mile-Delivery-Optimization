@@ -161,3 +161,136 @@ def solve_tsp(distance_matrix: List[List[float]], config: GAConfig = GAConfig())
     
     logger.info(f"GA completed: Best distance = {best_dist:.2f}m")
     return {"route": best_route, "distance": best_dist, "generations_run": config.generations}
+
+
+def solve_tsp_with_fixed_points(
+    distance_matrix: List[List[float]], 
+    config: GAConfig = GAConfig(),
+    start_idx: Optional[int] = None,
+    end_idx: Optional[int] = None
+) -> dict:
+    """
+    Solve TSP with fixed start and/or end points using Genetic Algorithm
+    
+    Args:
+        distance_matrix: NxN matrix of distances between points
+        config: GA configuration parameters
+        start_idx: Index of the fixed start point (None = any start)
+        end_idx: Index of the fixed end point (None = any end)
+        
+    Returns:
+        dict with 'route' (optimal order), 'distance' (total distance), 
+        'generations_run' (actual generations executed)
+    """
+    n = len(distance_matrix)
+    if n < 2:
+        return {"route": list(range(n)), "distance": 0.0, "generations_run": 0}
+    
+    # Get indices of points that can be shuffled
+    fixed_indices = set()
+    if start_idx is not None:
+        fixed_indices.add(start_idx)
+    if end_idx is not None:
+        fixed_indices.add(end_idx)
+    
+    middle_indices = [i for i in range(n) if i not in fixed_indices]
+    
+    # If only 2 points and both are fixed, return directly
+    if len(middle_indices) == 0:
+        if start_idx is not None and end_idx is not None:
+            return {
+                "route": [start_idx, end_idx],
+                "distance": distance_matrix[start_idx][end_idx],
+                "generations_run": 0
+            }
+        else:
+            return {
+                "route": list(range(n)),
+                "distance": sum(distance_matrix[i][i+1] for i in range(n-1)),
+                "generations_run": 0
+            }
+    
+    def build_route(middle_perm):
+        """Build full route from middle permutation"""
+        route = []
+        if start_idx is not None:
+            route.append(start_idx)
+        route.extend(middle_perm)
+        if end_idx is not None:
+            route.append(end_idx)
+        return route
+    
+    def route_distance_fixed(middle_perm):
+        """Calculate distance for a permutation of middle points"""
+        route = build_route(middle_perm)
+        return route_distance(route, distance_matrix)
+    
+    # Initialize population with random permutations of middle points
+    pop = []
+    for _ in range(config.pop_size):
+        middle_perm = middle_indices.copy()
+        random.shuffle(middle_perm)
+        pop.append(middle_perm)
+    
+    best_route = None
+    best_dist = float("inf")
+    no_improvement_count = 0
+
+    logger.info(f"Starting GA with fixed points: start={start_idx}, end={end_idx}, middle={len(middle_indices)} points")
+
+    for gen in range(config.generations):
+        # Evaluate and sort population
+        pop_sorted = sorted(pop, key=lambda r: route_distance_fixed(r))
+        
+        # Keep elite individuals
+        next_pop = [route.copy() for route in pop_sorted[:config.elite_size]]
+        
+        # Update best solution
+        cur_best = pop_sorted[0]
+        cur_best_d = route_distance_fixed(cur_best)
+        
+        if cur_best_d < best_dist:
+            best_dist = cur_best_d
+            best_route = build_route(cur_best.copy())
+            no_improvement_count = 0
+            if gen % 50 == 0:
+                logger.info(f"Gen {gen}: New best distance = {best_dist:.2f}m")
+        else:
+            no_improvement_count += 1
+        
+        # Early stopping
+        if config.early_stop_threshold and no_improvement_count >= config.early_stop_threshold:
+            logger.info(f"Early stopping at generation {gen} (no improvement for {no_improvement_count} gens)")
+            return {"route": best_route, "distance": best_dist, "generations_run": gen + 1}
+        
+        # Create next generation
+        while len(next_pop) < config.pop_size:
+            if random.random() < config.crossover_rate and len(middle_indices) > 1:
+                p1_idx = random.randint(0, min(config.tournament_k, len(pop)) - 1)
+                p2_idx = random.randint(0, min(config.tournament_k, len(pop)) - 1)
+                p1 = pop_sorted[p1_idx]
+                p2 = pop_sorted[p2_idx]
+                c1, c2 = ordered_crossover(p1, p2)
+                
+                # Apply mutations
+                swap_mutation(c1, config.mutation_rate)
+                inversion_mutation(c1, config.mutation_rate / 2)
+                
+                swap_mutation(c2, config.mutation_rate)
+                inversion_mutation(c2, config.mutation_rate / 2)
+                
+                next_pop.append(c1)
+                if len(next_pop) < config.pop_size:
+                    next_pop.append(c2)
+            else:
+                # Reproduce with mutation
+                p_idx = random.randint(0, min(config.tournament_k, len(pop)) - 1)
+                p = pop_sorted[p_idx].copy()
+                swap_mutation(p, config.mutation_rate)
+                inversion_mutation(p, config.mutation_rate / 2)
+                next_pop.append(p)
+        
+        pop = next_pop
+    
+    logger.info(f"GA completed: Best distance = {best_dist:.2f}m")
+    return {"route": best_route, "distance": best_dist, "generations_run": config.generations}

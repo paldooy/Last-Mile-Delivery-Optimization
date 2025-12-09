@@ -458,6 +458,27 @@
             </p>
           </div>
 
+          <!-- Start/End Location Selection -->
+          <div class="form-group" style="margin-top: 20px; padding: 15px; background: white; border-radius: 6px;">
+            <h3 style="margin-bottom: 15px; color: #333; font-size: 1.1em;">
+              🎯 Lokasi Awal & Tujuan
+            </h3>
+            
+            <div style="margin-bottom: 12px;">
+              <label style="font-size: 14px;">🏁 Lokasi Awal (Start)</label>
+              <select id="start_location" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;">
+                <option value="">-- Otomatis --</option>
+              </select>
+            </div>
+            
+            <div>
+              <label style="font-size: 14px;">🏁 Lokasi Tujuan Akhir (End)</label>
+              <select id="end_location" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;">
+                <option value="">-- Otomatis --</option>
+              </select>
+            </div>
+          </div>
+
           <div class="form-group" style="margin-top: 20px">
             <h3 style="margin-bottom: 15px; color: #333">
               ⚙️ Algorithm Parameters
@@ -653,6 +674,7 @@
         if (locations.length === 0) {
           listDiv.innerHTML =
             '<p style="text-align: center; color: #999; padding: 20px;">Belum ada lokasi.<br>Klik pada peta untuk menambah.</p>';
+          updateStartEndDropdowns();
           return;
         }
 
@@ -674,6 +696,43 @@
             `
           )
           .join("");
+        
+        updateStartEndDropdowns();
+      }
+
+      // Update start/end dropdowns when locations change
+      function updateStartEndDropdowns() {
+        const startSelect = document.getElementById('start_location');
+        const endSelect = document.getElementById('end_location');
+        
+        if (!startSelect || !endSelect) return;
+        
+        const currentStart = startSelect.value;
+        const currentEnd = endSelect.value;
+        
+        // Clear and repopulate
+        startSelect.innerHTML = '<option value="">-- Otomatis --</option>';
+        endSelect.innerHTML = '<option value="">-- Otomatis --</option>';
+        
+        locations.forEach((loc, index) => {
+          const option1 = document.createElement('option');
+          option1.value = index;
+          option1.textContent = `${loc.markerNum}. ${loc.label}`;
+          startSelect.appendChild(option1);
+          
+          const option2 = document.createElement('option');
+          option2.value = index;
+          option2.textContent = `${loc.markerNum}. ${loc.label}`;
+          endSelect.appendChild(option2);
+        });
+        
+        // Restore previous selections if still valid
+        if (currentStart && parseInt(currentStart) < locations.length) {
+          startSelect.value = currentStart;
+        }
+        if (currentEnd && parseInt(currentEnd) < locations.length) {
+          endSelect.value = currentEnd;
+        }
       }
 
       function updateLocationCount() {
@@ -730,6 +789,16 @@
           return;
         }
 
+        // Get start and end indices
+        const startIdx = document.getElementById('start_location').value;
+        const endIdx = document.getElementById('end_location').value;
+        
+        // Validate
+        if (startIdx && endIdx && startIdx === endIdx) {
+          showError("Lokasi awal dan tujuan tidak boleh sama!");
+          return;
+        }
+
         // Hide previous results/errors
         hideError();
         hideResult();
@@ -753,6 +822,14 @@
 
           osrm_url: "https://router.project-osrm.org",
         };
+        
+        // Add start_index and end_index if selected
+        if (startIdx !== "") {
+          payload.start_index = parseInt(startIdx);
+        }
+        if (endIdx !== "") {
+          payload.end_index = parseInt(endIdx);
+        }
 
         try {
           const response = await fetch(`${API_BASE_URL}/solve`, {
