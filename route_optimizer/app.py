@@ -13,6 +13,10 @@ import os
 import logging
 import time
 
+import os
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -75,6 +79,7 @@ class SolveResponse(BaseModel):
     total_duration_s: Optional[float] = Field(None, description="Total duration in seconds")
     generations_run: int = Field(..., description="Number of GA generations executed")
     computation_time_s: float = Field(..., description="Computation time in seconds")
+    polyline: Optional[str] = None
     
     class Config:
         json_schema_extra = {
@@ -146,7 +151,7 @@ def solve_endpoint(req: SolveRequest):
     # Build distance matrix
     osrm_url = req.osrm_url or os.getenv("OSRM_URL") or DEFAULT_OSRM_URL
     try:
-        distances, durations = build_distance_matrix(
+        distances, durations, polyline = build_distance_matrix(
             locs, 
             osrm_url, 
             use_duration=req.use_duration
@@ -170,6 +175,8 @@ def solve_endpoint(req: SolveRequest):
             status_code=500,
             detail=f"Error optimizing route: {str(e)}"
         )
+    print("POLYLINE:", polyline)
+
 
     # Calculate total duration if available
     route_idx = res["route"]
@@ -204,11 +211,17 @@ def solve_endpoint(req: SolveRequest):
         total_distance_m=total_distance,
         total_duration_s=total_duration,
         generations_run=res["generations_run"],
-        computation_time_s=computation_time
+        computation_time_s=computation_time,
+        polyline=polyline
     )
 
 # Mount static files for UI
-app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount(
+    "/static",
+    StaticFiles(directory=os.path.join(BASE_DIR, "static")),
+    name="static"
+)
+
 
 @app.get("/ui")
 def serve_ui():
