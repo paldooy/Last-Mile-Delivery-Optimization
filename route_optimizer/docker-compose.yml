@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  route-optimizer:
+    build: .
+    container_name: route-optimizer
+    ports:
+      - "8000:8000"
+    environment:
+      - OSRM_URL=http://router.project-osrm.org
+      - PORT=8000
+      - ROUTE_CACHE_DIR=/app/.cache
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./.cache:/app/.cache
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Optional: Local OSRM server for better performance
+  # Uncomment if you want to run OSRM locally
+  # osrm:
+  #   image: osrm/osrm-backend
+  #   container_name: osrm-server
+  #   ports:
+  #     - "5000:5000"
+  #   volumes:
+  #     - ./osrm-data:/data
+  #   command: osrm-routed --algorithm mld /data/indonesia-latest.osrm
+  #   restart: unless-stopped
+
+networks:
+  default:
+    name: route-optimizer-network
