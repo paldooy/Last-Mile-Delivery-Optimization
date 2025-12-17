@@ -1,5 +1,5 @@
 # tests/test_ga.py
-from ga import (
+from last_mile.services.ga import (
     solve_tsp, 
     GAConfig, 
     route_distance, 

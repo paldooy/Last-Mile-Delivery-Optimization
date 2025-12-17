@@ -1,6 +1,6 @@
 # tests/test_app.py
 from fastapi.testclient import TestClient
-from app import app
+from last_mile.app import app
 from unittest.mock import patch
 
 client = TestClient(app)
@@ -32,9 +32,9 @@ def test_solve_insufficient_locations():
     assert response.status_code == 400
     assert "at least 2 locations" in response.json()["detail"]
 
-@patch('app.parse_input_locations')
-@patch('app.build_distance_matrix')
-@patch('app.solve_tsp')
+@patch('last_mile.app.parse_input_locations')
+@patch('last_mile.app.build_distance_matrix')
+@patch('last_mile.app.solve_tsp')
 def test_solve_success(mock_solve, mock_distance, mock_parse):
     """Test successful solve request"""
     # Mock geocoding

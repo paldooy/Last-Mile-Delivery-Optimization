@@ -1,5 +1,5 @@
 # tests/test_routing.py
-from routing import build_distance_matrix
+from last_mile.services.routing import build_distance_matrix
 from math import isclose
 
 def test_haversine_fallback():

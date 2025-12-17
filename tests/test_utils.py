@@ -1,5 +1,5 @@
 # tests/test_utils.py
-from utils import haversine
+from last_mile.core.utils import haversine
 import math
 
 def test_haversine_same_point():

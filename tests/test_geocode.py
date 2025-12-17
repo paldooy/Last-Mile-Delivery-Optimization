@@ -1,5 +1,5 @@
 # tests/test_geocode.py
-from geocode import geocode_address, parse_input_locations
+from last_mile.services.geocode import geocode_address, parse_input_locations
 from unittest.mock import patch, MagicMock
 import pytest
 
@@ -39,7 +39,7 @@ def test_parse_input_locations_invalid():
 
 def test_parse_input_locations_mixed():
     """Test parsing mixed address and coordinates"""
-    with patch('geocode.geocode_address') as mock_geocode:
+    with patch('last_mile.services.geocode.geocode_address') as mock_geocode:
         mock_geocode.return_value = (-6.175, 106.827)
         
         items = [
